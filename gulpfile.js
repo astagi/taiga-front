@@ -27,6 +27,8 @@ var gulp = require("gulp"),
     del = require("del"),
     coffeelint = require('gulp-coffeelint');
 
+var current_theme = 'nephila';
+
 var paths = {};
 paths.app = "app/";
 paths.dist = "dist/";
@@ -54,6 +56,7 @@ paths.sass = [
     paths.app + "**/*.scss",
     "!" + paths.app + "/styles/bourbon/**/*.scss",
     "!" + paths.app + "/styles/dependencies/**/*.scss",
+    "!" + paths.app + "/themes/**/colors.scss",
     "!" + paths.app + "/styles/extras/**/*.scss"
 ];
 
@@ -76,7 +79,7 @@ paths.css_order = [
     paths.tmp + "styles/modules/**/*.css",
     paths.tmp + "modules/**/*.css",
     paths.tmp + "styles/shame/*.css",
-    paths.tmp + "plugins/**/*.css"
+    paths.tmp + "plugins/**/*.css",
 ];
 
 paths.coffee = [
@@ -217,13 +220,24 @@ gulp.task("scss-lint", [], function() {
 });
 
 gulp.task("sass-compile", ["scss-lint"], function() {
-    return gulp.src(paths.sass)
-        .pipe(plumber())
+    var includedPaths = [
+        paths.app + "styles/extras/",
+    ]
+
+    if (current_theme != '') {
+        includedPaths.push(paths.app + "themes/" + current_theme)
+    }
+
+    var sassPipe = gulp.src(paths.sass).pipe(plumber());
+
+    if (current_theme != '') {
+        sassPipe = sassPipe.pipe(insert.prepend('@import "colors";'));
+    }
+
+    return sassPipe
         .pipe(insert.prepend('@import "dependencies";'))
         .pipe(cache(sass({
-            includePaths: [
-                paths.app + "styles/extras/"
-            ]
+            includePaths: includedPaths
         })))
         .pipe(gulp.dest(paths.tmp));
 });
@@ -244,6 +258,9 @@ gulp.task("css-lint-app", function() {
 });
 
 gulp.task("css-join", ["css-lint-app"], function() {
+    if (current_theme != '') {
+        paths.css_order.push(paths.tmp + current_theme + "/items.css");
+    }
     return gulp.src(paths.css)
         .pipe(order(paths.css_order, {base: '.'}))
         .pipe(concat("app.css"))
