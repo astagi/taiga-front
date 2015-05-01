@@ -254,6 +254,8 @@ init = ($log, $config, $rootscope, $auth, $events, $analytics, $translate) ->
 
         $translate.use(user.lang) if user.lang
 
+        $('link[rel="stylesheet"]').attr('href','/styles/' + user.theme + '.css') if user.theme
+
     $analytics.initialize()
 
 

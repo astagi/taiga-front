@@ -25,9 +25,8 @@ var gulp = require("gulp"),
     order = require("gulp-order"),
     print = require('gulp-print'),
     del = require("del"),
-    coffeelint = require('gulp-coffeelint');
-
-var current_theme = 'nephila';
+    coffeelint = require('gulp-coffeelint'),
+    fs = require("fs");
 
 var paths = {};
 paths.app = "app/";
@@ -56,7 +55,6 @@ paths.sass = [
     paths.app + "**/*.scss",
     "!" + paths.app + "/styles/bourbon/**/*.scss",
     "!" + paths.app + "/styles/dependencies/**/*.scss",
-    "!" + paths.app + "/themes/**/colors.scss",
     "!" + paths.app + "/styles/extras/**/*.scss"
 ];
 
@@ -155,6 +153,20 @@ var isDeploy = process.argv[process.argv.length - 1] == "deploy";
 
 var jadeIncludes = paths.app +'partials/includes/**/*';
 
+function getThemes() {
+    var files = fs.readdirSync(paths.app + "themes");
+    var availableThemes = [];
+    for (var i in files){
+        var name = paths.app + "themes" + '/' + files[i];
+        if (fs.statSync(name).isDirectory()) {
+            availableThemes.push(files[i])
+        }
+    }
+    return availableThemes;
+}
+
+var availableThemes = getThemes();
+
 gulp.task("jade", function() {
     return gulp.src(paths.jade)
         .pipe(plumber())
@@ -219,20 +231,46 @@ gulp.task("scss-lint", [], function() {
         .pipe(gulpif(fail, scsslint.failReporter()))
 });
 
-gulp.task("sass-compile", ["scss-lint"], function() {
+function compile_theme(current_theme) {
     var includedPaths = [
         paths.app + "styles/extras/",
     ]
 
-    if (current_theme != '') {
-        includedPaths.push(paths.app + "themes/" + current_theme)
-    }
+    var sassFiles = paths.sass.slice(0);
+
+    availableThemes.forEach(function(theme) {
+        if (theme != current_theme) {
+            sassFiles.push("!" + paths.app + "themes/" + theme + '/*.scss)');
+        }
+    });
+
+    includedPaths.push(paths.app + "themes/" + current_theme);
+
+    var sassPipe = gulp.src(sassFiles).pipe(plumber());
+
+    sassPipe = sassPipe.pipe(insert.prepend('@import "colors";'));
+
+    return sassPipe
+        .pipe(insert.prepend('@import "dependencies";'))
+        .pipe(sass({
+            includePaths: includedPaths
+        }))
+        .pipe(gulp.dest(paths.tmp + "/" + current_theme));    
+}
+
+gulp.task("sass-compile", ["scss-lint"], function() {
+
+    availableThemes.forEach(function(theme) {
+        compile_theme(theme);
+    });
+
+    var includedPaths = [
+        paths.app + "styles/extras/",
+    ]
+
+    paths.sass.push("!" + paths.app + "/themes/**/*.scss");
 
     var sassPipe = gulp.src(paths.sass).pipe(plumber());
-
-    if (current_theme != '') {
-        sassPipe = sassPipe.pipe(insert.prepend('@import "colors";'));
-    }
 
     return sassPipe
         .pipe(insert.prepend('@import "dependencies";'))
@@ -257,10 +295,48 @@ gulp.task("css-lint-app", function() {
         .pipe(csslint.reporter());
 });
 
+function compile_app_css(current_theme) {
+
+    var path_theme = paths.tmp + current_theme + "/";
+
+    paths_template_css = [
+        path_theme + "styles/**/*.css",
+        path_theme + "modules/**/*.css",
+        path_theme + "plugins/**/*.css",
+        path_theme + "themes/" + current_theme + "/*.css",
+    ];
+
+    paths_template_css_order = [
+        path_theme + "styles/vendor/*",
+        path_theme + "styles/core/reset.css",
+        path_theme + "styles/core/base.css",
+        path_theme + "styles/core/animation.css",
+        path_theme + "styles/core/typography.css",
+        path_theme + "styles/core/elements.css",
+        path_theme + "styles/core/forms.css",
+        path_theme + "styles/layout/*",
+        path_theme + "styles/components/*",
+        path_theme + "styles/modules/**/*.css",
+        path_theme + "modules/**/*.css",
+        path_theme + "styles/shame/*.css",
+        path_theme + "plugins/**/*.css",
+
+        path_theme + "themes/" + current_theme + "/items.css",
+    ];
+
+    return gulp.src(paths_template_css)
+        .pipe(order(paths_template_css_order, {base: '.'}))
+        .pipe(concat("app.css"))
+        .pipe(autoprefixer({
+            cascade: false
+        }))
+        .pipe(gulp.dest(path_theme));
+}
+
 gulp.task("css-join", ["css-lint-app"], function() {
-    if (current_theme != '') {
-        paths.css_order.push(paths.tmp + current_theme + "/items.css");
-    }
+    availableThemes.forEach(function(theme) {
+        compile_app_css(theme);
+    });
     return gulp.src(paths.css)
         .pipe(order(paths.css_order, {base: '.'}))
         .pipe(concat("app.css"))
@@ -280,7 +356,25 @@ gulp.task("css-vendor", function() {
         .pipe(gulp.dest(paths.tmp));
 });
 
+function css_theme_final_style(current_theme) {
+
+    var _paths = [
+        paths.tmp + "vendor.css",
+        paths.tmp + current_theme + "/app.css"
+    ];
+
+    return gulp.src(_paths)
+        .pipe(concat(current_theme + ".css"))
+        .pipe(gulpif(isDeploy, minifyCSS({noAdvanced: true})))
+        .pipe(gulp.dest(paths.dist + "styles/"))
+}
+
 gulp.task("styles", ["css-app", "css-vendor"], function() {
+
+    availableThemes.forEach(function(theme) {
+        css_theme_final_style(theme);
+    });
+
     var _paths = [
         paths.tmp + "vendor.css",
         paths.tmp + "app.css"
@@ -389,18 +483,43 @@ gulp.task("clear", function(done) {
   return cache.clearAll(done);
 });
 
+function copy_svg_theme(current_theme) {
+    return gulp.src(paths.app + "/themes/" + current_theme + "/svg/**/*")
+        .pipe(gulp.dest(paths.dist + "/svg/" + current_theme));
+}
+
 //SVG
 gulp.task("copy-svg", function() {
+    availableThemes.forEach(function(theme) {
+        copy_svg_theme(theme);
+    });
     return gulp.src(paths.app + "/svg/**/*")
         .pipe(gulp.dest(paths.dist + "/svg/"));
 });
 
+function copy_fonts_theme(current_theme) {
+    return gulp.src(paths.app + "/themes/" + current_theme + "/fonts/*")
+        .pipe(gulp.dest(paths.dist + "/fonts/" + current_theme));
+}
+
 gulp.task("copy-fonts", function() {
+    availableThemes.forEach(function(theme) {
+        copy_fonts_theme(theme);
+    });
     return gulp.src(paths.app + "/fonts/*")
         .pipe(gulp.dest(paths.dist + "/fonts/"));
 });
 
+function copy_images_theme(current_theme) {
+    return gulp.src(paths.app + "/themes/" + current_theme + "/images/**/*")
+        .pipe(imagemin({progressive: true}))
+        .pipe(gulp.dest(paths.dist + "/images/" + current_theme));
+}
+
 gulp.task("copy-images", function() {
+    availableThemes.forEach(function(theme) {
+        copy_images_theme(theme);
+    });
     return gulp.src(paths.app + "/images/**/*")
         .pipe(imagemin({progressive: true}))
         .pipe(gulp.dest(paths.dist + "/images/"));

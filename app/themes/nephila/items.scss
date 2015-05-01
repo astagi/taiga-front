@@ -1,0 +1,9 @@
+.login-main {
+  @extend .login-main;
+  background: #FF0000 no-repeat right top;
+  background-size: cover; }
+
+.home-projects-list, .home-project {
+  background: url('/images/invitation_bg.jpg') no-repeat center center;
+  background-size: cover; 
+}
