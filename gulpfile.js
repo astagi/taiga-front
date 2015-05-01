@@ -240,7 +240,7 @@ function compile_theme(current_theme) {
 
     availableThemes.forEach(function(theme) {
         if (theme != current_theme) {
-            sassFiles.push("!" + paths.app + "themes/" + theme + '/*.scss)');
+            sassFiles.push("!" + paths.app + "themes/" + theme + '/*.scss');
         }
     });
 
@@ -255,7 +255,7 @@ function compile_theme(current_theme) {
         .pipe(sass({
             includePaths: includedPaths
         }))
-        .pipe(gulp.dest(paths.tmp + "/" + current_theme));    
+        .pipe(gulp.dest(paths.tmp + "/themes/" + current_theme));    
 }
 
 gulp.task("sass-compile", ["scss-lint"], function() {
@@ -268,7 +268,7 @@ gulp.task("sass-compile", ["scss-lint"], function() {
         paths.app + "styles/extras/",
     ]
 
-    paths.sass.push("!" + paths.app + "/themes/**/*.scss");
+    paths.sass.push("!" + paths.app + "themes/**/*.scss");
 
     var sassPipe = gulp.src(paths.sass).pipe(plumber());
 
@@ -295,9 +295,9 @@ gulp.task("css-lint-app", function() {
         .pipe(csslint.reporter());
 });
 
-function compile_app_css(current_theme) {
+function compile_theme_css(current_theme) {
 
-    var path_theme = paths.tmp + current_theme + "/";
+    var path_theme = paths.tmp  + "/themes/" + current_theme + "/";
 
     paths_template_css = [
         path_theme + "styles/**/*.css",
@@ -335,7 +335,7 @@ function compile_app_css(current_theme) {
 
 gulp.task("css-join", ["css-lint-app"], function() {
     availableThemes.forEach(function(theme) {
-        compile_app_css(theme);
+        compile_theme_css(theme);
     });
     return gulp.src(paths.css)
         .pipe(order(paths.css_order, {base: '.'}))
@@ -356,11 +356,11 @@ gulp.task("css-vendor", function() {
         .pipe(gulp.dest(paths.tmp));
 });
 
-function css_theme_final_style(current_theme) {
+function style_theme(current_theme) {
 
     var _paths = [
         paths.tmp + "vendor.css",
-        paths.tmp + current_theme + "/app.css"
+        paths.tmp + "/themes/" + current_theme + "/app.css"
     ];
 
     return gulp.src(_paths)
@@ -372,7 +372,7 @@ function css_theme_final_style(current_theme) {
 gulp.task("styles", ["css-app", "css-vendor"], function() {
 
     availableThemes.forEach(function(theme) {
-        css_theme_final_style(theme);
+        style_theme(theme);
     });
 
     var _paths = [
