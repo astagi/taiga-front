@@ -501,6 +501,7 @@ init = ($log, $rootscope, $auth, $events, $analytics, $translate, $location, $na
     if $auth.isAuthenticated()
         $events.setupConnection()
         user = $auth.getUser()
+        $('link[rel="stylesheet"]').attr('href','/styles/theme-' + user.theme + '.css') if user.theme
 
     # Analytics
     $analytics.initialize()
